@@ -390,7 +390,7 @@ def _split_batched_output(graph, value):
 def process_batch_mol_rxn(
     graph,
     feats,  #!mol features
-    reactions, #!reactions
+    reactions, #!reactions, only need length of reactions
     device,
     reverse,
     reactant_only,
@@ -424,7 +424,7 @@ def process_batch_mol_rxn(
 
         if nt == "global":
 
-            num_batches = len(reactions)
+            num_batches = reactions #len(reactions)
             batch_one_hot = torch.nn.functional.one_hot(global_batch_indices_reactant, num_batches).float()
             gathered_content = _features.index_select(0, batched_global_reactant)
             reactant_sum = torch.matmul(batch_one_hot.t(), gathered_content)
@@ -1071,7 +1071,6 @@ def create_rxn_graph(
     for nt in ntypes:
         reactants_ft = [p.nodes[nt].data[ft_name] for p in reactants]
         products_ft = [p.nodes[nt].data[ft_name] for p in products]
-<<<<<<< HEAD
         # printy number of nodes of a type
         #print("num nodes of type ", nt, " in reactants: ", [p.num_nodes(nt) for p in reactants])
         #print("num nodes of type ", nt, " in products: ", [p.num_nodes(nt) for p in products])
@@ -1083,8 +1082,6 @@ def create_rxn_graph(
         #if device is not None:
         #    reactants_ft = [r.to(device) for r in reactants_ft]
         #    products_ft = [p.to(device) for p in products_ft]
-=======
->>>>>>> wenbin_dev2/wenbin_dev
 
         if nt == "bond":
             if has_bonds == None:
@@ -1163,7 +1160,6 @@ def create_rxn_graph(
                 if reverse == True:
                     coef = torch.tensor([-1]).type_as(reactants_ft[0])
 
-<<<<<<< HEAD
                 #if device is not None:
                 #    coef = coef.to(device)
                 
@@ -1172,9 +1168,6 @@ def create_rxn_graph(
                 #print("nt {}".format(nt))
                 #print("nt maps {}".format(mappings[nt + "_map"]))
                 breakpoint()
-=======
-
->>>>>>> wenbin_dev2/wenbin_dev
                 for ind, reactant_ft in enumerate(reactants_ft):
 
                     net_ft_full_temp = copy.deepcopy(net_ft_full_zeros)

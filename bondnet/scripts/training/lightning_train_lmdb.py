@@ -119,7 +119,8 @@ if __name__ == "__main__":
 
     profiler = PyTorchProfiler(
         # activities=[torch.profiler.ProfilerActivity.CPU, torch.profiler.ProfilerActivity.CUDA],
-        on_trace_ready = torch.profiler.tensorboard_trace_handler("tb_logs/profiler_b20w4_batch2_2kdb"),
+        #profile_memory=True, #!for analyzing momery
+        on_trace_ready = torch.profiler.tensorboard_trace_handler("tb_logs/profiler_b800w4_batch2_1w5db_dataloader"),
         schedule = torch.profiler.schedule(skip_first=10, wait=1, warmup=1,
                                            active=2),
         # schedule = torch.profiler.schedule(skip_first=1, wait=1, warmup=1,

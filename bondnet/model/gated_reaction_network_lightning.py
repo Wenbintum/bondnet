@@ -371,7 +371,6 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
             batched_global_product = batched_global_product,
             global_batch_indices_reactant = global_batch_indices_reactant, 
             global_batch_indices_product = global_batch_indices_product,
-
             mappings = None, #!needed for atom and bond.
             has_bonds = None, #!needed for atom and bond.
             ntypes=("global", "atom", "bond"),
@@ -453,8 +452,11 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
 
     def shared_step(self, batch, mode):
         # ========== compute predictions ==========
-        batched_graph, label = batch
+        batched_graph, label, batched_indices_dict = batch
+        #!dict_keys(['value', 'value_rev', 'reaction', 'id', 'scaler_mean', 'scaler_stdev', 'norm_atom', 'norm_bond']), no need to have reaction.
 
+        #breakpoint()
+    
         #!batch molecule graph.
         nodes = ["atom", "bond", "global"]
         #!global [76, 8], atom [2549, 14] , bond [2605, 7]
@@ -469,18 +471,12 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         norm_bond = label["norm_bond"]
         stdev = label["scaler_stdev"]
         mean = label["scaler_mean"]
-        reactions = label["reaction"]
+        reactions = len(target) #only need length #!
 
-        #breakpoint()
-        #* batch graph on GPU?
-        #!batch_indices of molecular graph
-        atom_batch_indices = get_node_batch_indices(batched_graph, "atom")
-        bond_batch_indices = get_node_batch_indices(batched_graph, "bond")
-        global_batch_indices = get_node_batch_indices(batched_graph, "global")
-
-        #!batch reaction and features
-        device="cuda:0"
-        (batched_rxn_graphs, 
+        (atom_batch_indices,
+        bond_batch_indices,
+        global_batch_indices,
+        batched_rxn_graphs, 
         batched_atom_reactant, 
         batched_atom_product, 
         batched_bond_reactant, 
@@ -488,12 +484,34 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         batched_global_reactant,
         batched_global_product,
         global_batch_indices_reactant,
-        global_batch_indices_product
-        )=create_batched_reaction_data(reactions, 
-                               atom_batch_indices,
-                               bond_batch_indices,
-                               global_batch_indices, 
-                               device)
+        global_batch_indices_product)=batched_indices_dict.values()
+
+
+                
+        #breakpoint()
+        # device = target.device
+        # #breakpoint()
+        # #* batch graph on GPU?
+        # #!batch_indices of molecular graph
+        # atom_batch_indices = get_node_batch_indices(batched_graph, "atom")
+        # bond_batch_indices = get_node_batch_indices(batched_graph, "bond")
+        # global_batch_indices = get_node_batch_indices(batched_graph, "global")
+
+        # #!batch reaction and features
+        # (batched_rxn_graphs, 
+        # batched_atom_reactant, 
+        # batched_atom_product, 
+        # batched_bond_reactant, 
+        # batched_bond_product,
+        # batched_global_reactant,
+        # batched_global_product,
+        # global_batch_indices_reactant,
+        # global_batch_indices_product
+        # )=create_batched_reaction_data(reactions, 
+        #                        atom_batch_indices,
+        #                        bond_batch_indices,
+        #                        global_batch_indices, 
+        #                        device)
         
         #breakpoint()
         if self.stdev is None:
