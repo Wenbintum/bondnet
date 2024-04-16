@@ -327,30 +327,8 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         # gated layer #! 24 to 512 hidden layers.
         for layer in self.gated_layers:
             feats = layer(graph, feats, norm_atom, norm_bond)
-        #atom: 2584, bond: 2618, global: 80
-        #!global [76, 512]
-        # get device
-        device = feats["bond"].device
-        #breakpoint()
-        # convert mol graphs to reaction graphs
 
-        # graph, feats = unbatch_mol_graph_to_rxn_graph(
-        #     graph = graph,
-        #     feats = feats,
-        #     reactions = reactions,
-        #     device = device,
-        #     reverse = reverse,
-        #     reactant_only=self.hparams.reactant_only,
-        #     atom_batch_indices = atom_batch_indices,
-        #     bond_batch_indices = bond_batch_indices,
-        #     global_batch_indices = global_batch_indices,
-        #     mappings = None, #!needed for atom and bond.
-        #     has_bonds = None, #!needed for atom and bond.
-        #     ntypes=("global", "atom", "bond"),
-        #     ft_name="ft",
-        #     zero_fts=False,
-        #     empty_graph_fts=True,
-        # )
+        device = feats["bond"].device
 
         feats = process_batch_mol_rxn(
             graph = graph,
@@ -378,8 +356,6 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
             zero_fts=False,
             empty_graph_fts=True,
         )
-
-        #breakpoint()
 
         # readout layer
         feats = self.readout_layer(batched_rxn_graphs, feats)
@@ -453,15 +429,7 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
     def shared_step(self, batch, mode):
         # ========== compute predictions ==========
         batched_graph, label, batched_indices_dict = batch
-        #!dict_keys(['value', 'value_rev', 'reaction', 'id', 'scaler_mean', 'scaler_stdev', 'norm_atom', 'norm_bond']), no need to have reaction.
-
-        #breakpoint()
-    
-        #!batch molecule graph.
         nodes = ["atom", "bond", "global"]
-        #!global [76, 8], atom [2549, 14] , bond [2605, 7]
-        #!After GCN, global [76,512] atom [2549, 512] , bond [2605, 512]
-        #!embedding size 24, hidden size 512?  atom[14,24] bond[7,24], global[8,24]
         feats = {nt: batched_graph.nodes[nt].data["ft"] for nt in nodes}
         target = label["value"].view(-1)
         target_aug = label["value_rev"].view(-1)
@@ -486,34 +454,6 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         global_batch_indices_reactant,
         global_batch_indices_product)=batched_indices_dict.values()
 
-
-                
-        #breakpoint()
-        # device = target.device
-        # #breakpoint()
-        # #* batch graph on GPU?
-        # #!batch_indices of molecular graph
-        # atom_batch_indices = get_node_batch_indices(batched_graph, "atom")
-        # bond_batch_indices = get_node_batch_indices(batched_graph, "bond")
-        # global_batch_indices = get_node_batch_indices(batched_graph, "global")
-
-        # #!batch reaction and features
-        # (batched_rxn_graphs, 
-        # batched_atom_reactant, 
-        # batched_atom_product, 
-        # batched_bond_reactant, 
-        # batched_bond_product,
-        # batched_global_reactant,
-        # batched_global_product,
-        # global_batch_indices_reactant,
-        # global_batch_indices_product
-        # )=create_batched_reaction_data(reactions, 
-        #                        atom_batch_indices,
-        #                        bond_batch_indices,
-        #                        global_batch_indices, 
-        #                        device)
-        
-        #breakpoint()
         if self.stdev is None:
             self.stdev = stdev[0]
 
@@ -677,25 +617,24 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         mean = label["scaler_mean"]
 
 
-
-        atom_batch_indices = get_node_batch_indices(batched_graph, "atom")
-        bond_batch_indices = get_node_batch_indices(batched_graph, "bond")
-        global_batch_indices = get_node_batch_indices(batched_graph, "global")
+        # atom_batch_indices = get_node_batch_indices(batched_graph, "atom")
+        # bond_batch_indices = get_node_batch_indices(batched_graph, "bond")
+        # global_batch_indices = get_node_batch_indices(batched_graph, "global")
 
         if self.stdev is None:
             self.stdev = stdev[0]
 
-        pred = self(
-            graph=batched_graph,
-            feats=feats,
-            reactions=reactions,
-            reverse=False,
-            norm_bond=norm_bond,
-            norm_atom=norm_atom,
-            atom_batch_indices=atom_batch_indices,
-            bond_batch_indices=bond_batch_indices,
-            global_batch_indices=global_batch_indices,
-        )
+        # pred = self(
+        #     graph=batched_graph,
+        #     feats=feats,
+        #     reactions=reactions,
+        #     reverse=False,
+        #     norm_bond=norm_bond,
+        #     norm_atom=norm_atom,
+        #     atom_batch_indices=atom_batch_indices,
+        #     bond_batch_indices=bond_batch_indices,
+        #     global_batch_indices=global_batch_indices,
+        # )
 
         pred = pred.view(-1)
 
@@ -817,174 +756,3 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         #    # torch_mse = torch_mse + self.mean
 
         return r2, torch_l1, torch_mse
-    
-
-def get_node_batch_indices(batched_graph, node_type):
-    """
-    Generate batch indices for each node of the specified type in a batched DGL graph.
-    
-    Args:
-    - batched_graph (DGLGraph): The batched graph.
-    - node_type (str): The type of nodes for which to generate batch indices.
-    
-    Returns:
-    - torch.Tensor: The batch indices for each node of the specified type.
-    """
-    batch_num_nodes = batched_graph.batch_num_nodes(node_type)
-    return torch.repeat_interleave(torch.arange(len(batch_num_nodes), device=batched_graph.device), batch_num_nodes)
-
-def get_batch_indices_mapping(batch_indices, reactant_ids, atom_bond_map, atom_bond_num, device):
-    distinguishable_value = torch.iinfo(torch.long).max
-    indices_full = torch.full((atom_bond_num,), distinguishable_value, dtype=torch.long, device=device)
-    sorted_index_reaction = [torch.tensor([value for key, value in sorted(d.items())], device=device) for d in atom_bond_map]
-    #reactant_ids = torch.tensor(reactant_ids, device=device)
-    #!when two ids are identical, how to fix this?
-    matches = torch.tensor([idx for rid in reactant_ids for idx in (batch_indices == rid).nonzero(as_tuple=True)[0]], device=device)
-
-    # matches = ((batch_indices[:, None] == reactant_ids[None, :]).any(dim=1).nonzero(as_tuple=False).squeeze())
-    # if len(reactant_ids)==2 and torch.all(reactant_ids == reactant_ids[0]).item():
-    #     matches=torch.cat([matches, matches])
-
-    sorted_values_concat = torch.cat(sorted_index_reaction)
-    #batch_indices_reaction = matches[sorted_values_concat]
-    #!shape mismatch: value tensor of shape [52] cannot be broadcast to indexing result of shape [104]
-    #print("reactant_ids",reactant_ids)
-    #print(sorted_values_concat.shape, matches.shape)
-    indices_full[sorted_values_concat] = matches
-
-    return indices_full
-
-def create_batched_reaction_data(reactions,atom_batch_indices,
-                                 bond_batch_indices, global_batch_indices, device):
-    
-    batched_graphs = dgl.batch([reaction['reaction_graph'] for reaction in reactions])
-
-
-    batched_atom_reactant = torch.tensor([],dtype=torch.long, device=device) #torch.Tensor([], device=device)
-    batched_atom_product =  torch.tensor([], dtype=torch.long, device=device)#torch.Tensor([], device=device)
-    batched_bond_reactant = torch.tensor([], dtype=torch.long, device=device) #torch.Tensor([], device=device)
-    batched_bond_product = torch.tensor([], dtype=torch.long, device=device) # torch.Tensor([], device=device)
-    batched_global_reactant = torch.tensor([], dtype=torch.long, device=device) 
-    batched_global_product = torch.tensor([], dtype=torch.long, device=device)  
-
-    global_batch_indices_reactant = torch.tensor([], dtype=torch.long, device=device) 
-    global_batch_indices_product = torch.tensor([], dtype=torch.long, device=device)  
-
-
-
-    # idx = 0
-    for idx, reaction in enumerate(reactions):
-
-            #print("idx:", idx)
-            #breakpoint()
-            # print(">>>>>>>>>>>>>>>>id:", idx)
-            # idx+=1
-            num_atoms_total = reaction["mappings"]["num_atoms_total"]
-            num_bond_total = reaction["mappings"]["num_bonds_total"]
-
-        #!reactant
-        #batched_indices_reaction for reactant.
-            reactant_ids= reaction["reaction_molecule_info"]["reactants"]["reactants"]
-            reactant_ids = torch.tensor(reactant_ids, device=device)
-
-            
-            #!global
-            batched_global_reactant = torch.cat((batched_global_reactant, reactant_ids),dim=0)
-
-            #breakpoint()
-
-            global_batch_indices_reactant=torch.cat((global_batch_indices_reactant, torch.tensor([idx]*len(reactant_ids), dtype=torch.long, device=device)),dim=0)
-
-
-            #!atom
-            atom_map_react = reaction["mappings"]["atom_map"][0]
-            batch_indices_react=get_batch_indices_mapping(atom_batch_indices, reactant_ids, atom_map_react, num_atoms_total, device=device)
-            #batched_atom_reactant.extend(batch_indices_react)
-            batched_atom_reactant = torch.cat((batched_atom_reactant, batch_indices_react),dim=0)
-
-            #!bond
-            #breakpoint()
-            bond_map_react = reaction["mappings"]["bond_map"][0]
-            batch_indices_react=get_batch_indices_mapping(bond_batch_indices, reactant_ids, bond_map_react, num_bond_total, device=device)
-            #batched_bond_reactant.extend(batch_indices_react)
-            batched_bond_reactant = torch.cat((batched_bond_reactant, batch_indices_react),dim=0)
-
-        #!product
-        #batched_indices_reaction for product.
-            product_ids= reaction["reaction_molecule_info"]["products"]["products"]
-            product_ids = torch.tensor(product_ids, device=device)
-
-            #!global 
-            batched_global_product = torch.cat((batched_global_product, product_ids),dim=0)
-            global_batch_indices_product=torch.cat((global_batch_indices_product, torch.tensor([idx]*len(product_ids), dtype=torch.long, device=device)),dim=0)
-
-
-            #!atom
-            atom_map_product = reaction["mappings"]["atom_map"][1]
-            batch_indices_product=get_batch_indices_mapping(atom_batch_indices, product_ids, atom_map_product, num_atoms_total, device=device)
-            #batched_atom_product.extend(batch_indices_product)
-            batched_atom_product = torch.cat((batched_atom_product, batch_indices_product), dim=0)
-
-            #!bond
-            bond_map_product = reaction["mappings"]["bond_map"][1]
-            batch_indices_product=get_batch_indices_mapping(bond_batch_indices, product_ids, bond_map_product, num_bond_total, device=device)
-            #batched_bond_product.extend(batch_indices_product)
-            batched_bond_product = torch.cat((batched_bond_product, batch_indices_product), dim=0)
-    
-    #!batched indices will be used after MP step.
-    return batched_graphs, batched_atom_reactant, batched_atom_product, batched_bond_reactant, batched_bond_product, batched_global_reactant, batched_global_product, global_batch_indices_reactant, global_batch_indices_product
-
-
-        # #batched_indices_reaction for reactant.
-        #     bond_map_react = reaction["mappings"]["bond_map"][0]
-        #     reactant_ids= reaction["reaction_molecule_info"]["reactants"]["reactants"]
-        #     batch_indices_reaction=get_batch_indices_mapping(atom_batch_indices, reactant_ids, atom_map_react, device=device)
-        #     batched_atom_reactant.extend(batch_indices_reaction)
-        # #batched_indices_reaction for product.
-        #     atom_map_product = reaction["mappings"]["atom_map"][1]
-        #     product_ids= reaction["reaction_molecule_info"]["reactants"]["reactants"]
-        #     batch_indices_product=get_batch_indices_mapping(atom_batch_indices, product_ids, atom_map_product, device=device)
-        #     batched_atom_product.extend(batch_indices_product)
-
-
-
-    # # Initialize containers for the combined mappings and features
-    # combined_atom_map = []
-    # combined_bond_map = []
-    # combined_total_bonds = []
-    # combined_total_atoms = []
-
-    # # Iterate through reactions to adjust and aggregate mappings
-    # offset_atoms = 0  # Keeps track of the offset for atom indices
-    # offset_bonds = 0  # Keeps track of the offset for bond indices
-    # for reaction in reactions:
-    #     atom_map = reaction['atom_map']
-    #     bond_map = reaction['bond_map']
-    #     total_atoms = reaction['total_atoms']
-    #     total_bonds = reaction['total_bonds']
-        
-    #     # Adjust mappings with the current offset
-    #     adjusted_atom_map = [{k+offset_atoms: v+offset_atoms for k, v in map_pair.items()} for map_pair in atom_map]
-    #     adjusted_bond_map = [{k+offset_bonds: v+offset_bonds for k, v in map_pair.items()} for map_pair in bond_map]
-
-    #     # Update the combined mappings
-    #     combined_atom_map.extend(adjusted_atom_map)
-    #     combined_bond_map.extend(adjusted_bond_map)
-
-    #     # Adjust total_atoms and total_bonds with the current offset
-    #     adjusted_total_atoms = [i + offset_atoms for i in total_atoms]
-    #     adjusted_total_bonds = [i + offset_bonds for i in total_bonds]
-
-    #     combined_total_atoms.extend(adjusted_total_atoms)
-    #     combined_total_bonds.extend(adjusted_total_bonds)
-
-    #     # Update offsets for the next iteration
-    #     offset_atoms += max(total_atoms) + 1  # Assuming total_atoms is a list of atom indices
-    #     offset_bonds += max(total_bonds) + 1  # Assuming total_bonds is a list of bond indices
-
-    # # Construct batched features based on adjusted mappings. This step will depend on how your features are structured
-    # # and may involve aggregating features from individual reactions into a combined tensor that aligns with the batched_graph.
-    # # Placeholder for feature construction
-    # batched_features = None  # Construct batched features based on the combined mappings and individual reaction features
-
-    # return batched_graphs, combined_atom_map, combined_bond_map, combined_total_atoms, combined_total_bonds, batched_features

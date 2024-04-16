@@ -278,6 +278,7 @@ def get_batch_indices_mapping(batch_indices, reactant_ids, atom_bond_map, atom_b
     indices_full[sorted_values_concat] = matches
     return indices_full
 
+
 def create_batched_reaction_data(reactions,atom_batch_indices,
                                  bond_batch_indices, global_batch_indices, device):
     

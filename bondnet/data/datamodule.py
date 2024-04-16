@@ -57,8 +57,8 @@ class BondNetLightningDataModuleLMDB(pl.LightningDataModule):
         #     )
         #     self.test_dataset = ReactionLMDB(self.test_molecule_dataset, self.test_rxn_dataset)
         
-        #!path should be   dataset-{molecule, reaction}
-
+        #!path should be   dataset-{molecule/molecule.lmdb, 
+        #!                          reaction/reaction_*.lmdb}
         if "val_lmdb" in self.config["dataset"]:
             config_val = {
                 "src": os.path.join(self.val_lmdb_loc, "molecule/molecule.lmdb")
