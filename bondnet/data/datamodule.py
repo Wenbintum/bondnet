@@ -41,28 +41,30 @@ class BondNetLightningDataModuleLMDB(pl.LightningDataModule):
 
 
     def prepare_data(self):
-        if "test_lmdb" in self.config["dataset"]:
-            self.test_rxn_dataset = LmdbReactionDataset(
-                config = {
-                    "src": os.path.join(self.test_lmdb_loc, "reaction.lmdb")
-                }
-            )
+        # if "test_lmdb" in self.config["dataset"]:
+        #     self.test_rxn_dataset = LmdbReactionDataset(
+        #         config = {
+        #             "src": os.path.join(self.test_lmdb_loc, "reaction.lmdb")
+        #         }
+        #     )
 
-            self.test_molecule_dataset = LmdbMoleculeDataset(
-                config={
-                    "src": os.path.join(self.test_lmdb_loc, "molecule.lmdb")
-                },
-               #transform=TransformMol
+        #     self.test_molecule_dataset = LmdbMoleculeDataset(
+        #         config={
+        #             "src": os.path.join(self.test_lmdb_loc, "molecule.lmdb")
+        #         },
+        #        #transform=TransformMol
 
-            )
-            self.test_dataset = ReactionLMDB(self.test_molecule_dataset, self.test_rxn_dataset)
+        #     )
+        #     self.test_dataset = ReactionLMDB(self.test_molecule_dataset, self.test_rxn_dataset)
         
+        #!path should be   dataset-{molecule, reaction}
+
         if "val_lmdb" in self.config["dataset"]:
             config_val = {
-                "src": os.path.join(self.val_lmdb_loc, "molecule.lmdb")
+                "src": os.path.join(self.val_lmdb_loc, "molecule/molecule.lmdb")
             }
             config_val_rxn = {
-                "src": os.path.join(self.val_lmdb_loc, "reaction.lmdb")
+                "src": os.path.join(self.val_lmdb_loc, "reaction")#"reaction.lmdb")
             }
 
             self.val_rxn_dataset = LmdbReactionDataset(
@@ -77,11 +79,11 @@ class BondNetLightningDataModuleLMDB(pl.LightningDataModule):
 
 
         config_train = {
-            "src": os.path.join(self.train_lmdb_loc, "molecule.lmdb")
+            "src": os.path.join(self.train_lmdb_loc, "molecule/molecule.lmdb")
         }
 
         config_train_rxn = {
-            "src": os.path.join(self.train_lmdb_loc, "reaction.lmdb")
+            "src": os.path.join(self.train_lmdb_loc, "reaction")#/reaction.lmdb")
         }
 
 

@@ -26,6 +26,10 @@ import pickle5 as pickle
 logger = RDLogger.logger()
 logger.setLevel(RDLogger.CRITICAL)
 import torch.autograd.profiler as profiler
+import io
+import dgl
+import tempfile
+import bisect
 
 def task_done(future):
     try:
@@ -884,13 +888,59 @@ class LmdbReactionDataset(LmdbBaseDataset):
 
     @property
     def mean(self):
-        mean = self.env.begin().get("mean".encode("ascii"))
-        return pickle.loads(mean)
-    
+        return self._mean
+
     @property
     def std(self):
-        std = self.env.begin().get("std".encode("ascii"))
-        return pickle.loads(std)
+        #std = self.env_.begin().get("std".encode("ascii"))
+        return self._std
+    
+# class LmdbReactionDataset(LmdbBaseDataset):
+#     def __init__(self, config, transform=None):
+#         super(LmdbReactionDataset, self).__init__(config=config, transform=transform)
+
+#         if not self.path.is_file():
+#             self.env_ = self.envs[0]
+#             #get keys
+#             for i in range(1, len(self.envs)):
+#                 for key in ["feature_size", "dtype", "feature_name"]: #, "mean", "std"]:
+#                     assert self.envs[i].begin().get(key.encode("ascii")) == self.envs[0].begin().get(key.encode("ascii"))
+#                     #! mean and std are not equal across different dataset at this time.
+#             #get mean and std
+#             mean_list = [pickle.loads(self.envs[i].begin().get("mean".encode("ascii"))) for i in range(0, len(self.envs))]
+#             std_list = [pickle.loads(self.envs[i].begin().get("std".encode("ascii"))) for i in range(0, len(self.envs))]
+#             count_list = [pickle.loads(self.envs[i].begin().get("length".encode("ascii"))) for i in range(0, len(self.envs))]
+#             self._mean, self._std = combined_mean_std(mean_list, std_list, count_list)
+                    
+#         else:
+#             self.env_ = self.env
+#             self._mean = pickle.loads(self.env_.begin().get("mean".encode("ascii")))
+#             self._std  = pickle.loads(self.env_.begin().get("std".encode("ascii")))
+        
+#     @property
+#     def dtype(self):
+#         dtype = self.env_.begin().get("dtype".encode("ascii"))
+#         return  pickle.loads(dtype)
+
+#     @property
+#     def feature_size(self):
+#         feature_size = self.env_.begin().get("feature_size".encode("ascii"))
+#         return pickle.loads(feature_size)
+
+#     @property
+#     def feature_name(self):
+#         feature_name = self.env_.begin().get("feature_name".encode("ascii"))
+#         return pickle.loads(feature_name)
+
+#     @property
+#     def mean(self):
+#         mean = self.env.begin().get("mean".encode("ascii"))
+#         return pickle.loads(mean)
+    
+#     @property
+#     def std(self):
+#         std = self.env.begin().get("std".encode("ascii"))
+#         return pickle.loads(std)
     
 
 class Subset(BaseDataset):
@@ -1024,3 +1074,27 @@ def train_validation_test_split(dataset, validation=0.1, test=0.1, random_seed=N
                     Subset(dataset, test_idx),
             ]
     
+def combined_mean_std(mean_list, std_list, count_list):
+    """
+    Calculate the combined mean and standard deviation of multiple datasets.
+
+    :param mean_list: List of means of the datasets.
+    :param std_list: List of standard deviations of the datasets.
+    :param count_list: List of number of data points in each dataset.
+    :return: Combined mean and standard deviation.
+    """
+    # Calculate total number of data points
+    total_count = sum(count_list)
+
+    # Calculate combined mean
+    combined_mean = sum(mean * count for mean, count in zip(mean_list, count_list)) / total_count
+
+    # Calculate combined variance
+    combined_variance = sum(
+        ((std ** 2) * (count - 1) + count * (mean - combined_mean) ** 2 for mean, std, count in zip(mean_list, std_list, count_list))
+    ) / (total_count - len(mean_list))
+
+    # Calculate combined standard deviation
+    combined_std = (combined_variance ** 0.5)
+
+    return combined_mean, combined_std

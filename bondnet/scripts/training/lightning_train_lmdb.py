@@ -76,6 +76,8 @@ if __name__ == "__main__":
     else:
         dm = BondNetLightningDataModule(config)
 
+    #!prepare_data will process val_db, train_db.
+
     feature_size, feature_names = dm.prepare_data()
     config["model"]["in_feats"] = feature_size
     config["dataset"]["feature_names"] = feature_names
@@ -128,7 +130,7 @@ if __name__ == "__main__":
     )
 
     trainer = pl.Trainer(
-        profiler=profiler,
+        #profiler=profiler,
         fast_dev_run=config["model"]["debug"],
         max_epochs=config["model"]["max_epochs"],
         accelerator="gpu",

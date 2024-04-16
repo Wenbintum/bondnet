@@ -43,10 +43,10 @@
     "reactant_only": false
   },
   "optim": {
-    "batch_size": 800,
+    "batch_size": 3000,
     "num_devices": 1,
     "num_nodes": 1,
-    "num_workers": 10,
+    "num_workers": 40,
     "val_size": 0.15,
     "test_size": 0.1,
     "strategy": "ddp",
@@ -59,7 +59,7 @@
     "log_save_dir": "./model_log/",
     "lmdb_dir": "./lmdb_data/",
     "target_var": "dG_sp",
-    "train_lmdb": "/pscratch/sd/w/wenxu/jobs/CRNs/bondnet_0321/tests/data/testdata/lmdb_new_large", 
+    "train_lmdb": "/pscratch/sd/w/wenxu/jobs/CRNs/bondnet_0321/tests/data/testdata/lmdb_val_id", 
     "val_lmdb":   "/pscratch/sd/w/wenxu/jobs/CRNs/bondnet_0321/tests/data/testdata/lmdb_new",
     "overwrite": true
   },
