@@ -556,7 +556,9 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         Test step
         """
         # ========== compute predictions ==========
-        batched_graph, label = batch
+        # ========== compute predictions ==========
+        batched_graph, label, batch_data = batch
+        
         nodes = ["atom", "bond", "global"]
         feats = {nt: batched_graph.nodes[nt].data["ft"] for nt in nodes}
         target = label["value"].view(-1)
@@ -565,9 +567,11 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         empty_aug = True in empty_aug
         norm_atom = label["norm_atom"]
         norm_bond = label["norm_bond"]
-        reactions = label["reaction"]
         stdev = label["scaler_stdev"]
         mean = label["scaler_mean"]
+        reactions = len(target)
+        # check if reaction_graphs are in reactions
+        #print("No. Reactions", reactions)
         
         if self.stdev is None:
             self.stdev = stdev[0]
@@ -579,36 +583,66 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
             reverse=False,
             norm_bond=norm_bond,
             norm_atom=norm_atom,
+            batch_data=batch_data
         )
-
         pred = pred.view(-1)
 
-        pred = pred.to(torch.float32)
-        target = target.to(torch.float32)
-        stdev = stdev.to(torch.float32)
-        pred_np = pred.detach().cpu().numpy()
-        target_np = target.detach().cpu().numpy()
-        stdev_np = stdev.detach().cpu().numpy()
-        plt.scatter(pred_np * stdev_np, target_np * stdev_np)
-        min_val = np.min([np.min(pred_np), np.min(target_np)]) - 0.5
-        max_val = np.max([np.max(pred_np), np.max(target_np)]) + 0.5
-        # manually compute mae and mse
-        mae = np.mean(np.abs(pred_np * stdev_np - target_np * stdev_np))
-        mse = np.mean((pred_np * stdev_np - target_np * stdev_np) ** 2)
-        r2 = np.corrcoef(pred_np, target_np)[0, 1] ** 2
-        print("-" * 30)
-        print("MANUALLY COMPUTED METRICS")
-        print("-" * 30)
-        print("mae: ", mae)
-        print("mse: ", mse)
-        print("r2: ", r2)
+        all_loss = self.compute_loss(pred, target)
+            # ========== logger the loss ==========
 
-        plt.title("Predicted vs. True")
-        plt.xlabel("Predicted")
-        plt.ylabel("True")
-        plt.savefig("./{}.png".format("./test"))
-        return self.shared_step(batch, mode="test")
+        #breakpoint()
+        #!>>>>>>>>>>>>>>>>>print error on each class separately
+        batch_size = len(pred)
+        start_idx = batch_idx * batch_size
+        end_idx = start_idx + batch_size
+        batch_class_info = self.test_class_info[start_idx:end_idx]
+        for class_index in  ["electron_tran", "break_1_form_1", "form_1" ,"break_1"]:
+            indices = (np.array(batch_class_info) == class_index)
+            if indices.any():
+                class_loss = self.loss(pred[indices], target[indices]) #which loss function?
+                self.class_losses[class_index].append(class_loss.detach())
+        #!>>>>>>>>>>>>>>>    
 
+        self.log(
+            f"test_loss",
+            all_loss,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=len(label),
+            sync_dist=True,
+            rank_zero_only=True
+        )
+        self.update_metrics(target, pred, "test")
+
+        return all_loss
+        # pred = pred.view(-1)
+
+        # pred = pred.to(torch.float32)
+        # target = target.to(torch.float32)
+        # stdev = stdev.to(torch.float32)
+        # pred_np = pred.detach().cpu().numpy()
+        # target_np = target.detach().cpu().numpy()
+        # stdev_np = stdev.detach().cpu().numpy()
+        # plt.scatter(pred_np * stdev_np, target_np * stdev_np)
+        # min_val = np.min([np.min(pred_np), np.min(target_np)]) - 0.5
+        # max_val = np.max([np.max(pred_np), np.max(target_np)]) + 0.5
+        # # manually compute mae and mse
+        # mae = np.mean(np.abs(pred_np * stdev_np - target_np * stdev_np))
+        # mse = np.mean((pred_np * stdev_np - target_np * stdev_np) ** 2)
+        # r2 = np.corrcoef(pred_np, target_np)[0, 1] ** 2
+        # print("-" * 30)
+        # print("MANUALLY COMPUTED METRICS")
+        # print("-" * 30)
+        # print("mae: ", mae)
+        # print("mse: ", mse)
+        # print("r2: ", r2)
+
+        # plt.title("Predicted vs. True")
+        # plt.xlabel("Predicted")
+        # plt.ylabel("True")
+        # plt.savefig("./{}.png".format("./test"))
+        #return self.shared_step(batch, mode="test")
 
     def on_train_epoch_start(self):
         self.start_time = time.time()
@@ -645,6 +679,18 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         self.log("val_l1", torch_l1, prog_bar=True, sync_dist=True, rank_zero_only=True)
         self.log("val_mse", torch_mse, prog_bar=True, sync_dist=True, rank_zero_only=True)
 
+    def on_test_start(self):
+        import pickle
+        self.class_losses = {
+        "electron_tran": [],
+        "break_1_form_1" : [],
+        "form_1" : [],
+        "break_1" : []
+        }  # Assuming num_classes is defined
+        
+
+        with open("/pscratch/sd/w/wenxu/jobs/CRNs/id_test_type_reaction.pickle", "rb") as infile:
+            self.test_class_info = pickle.load(infile)
 
     def on_test_epoch_end(self):
         """
@@ -655,6 +701,21 @@ class GatedGCNReactionNetworkLightning(pl.LightningModule):
         self.log("test_r2", r2, prog_bar=True, sync_dist=True, rank_zero_only=True)
         self.log("test_l1", torch_l1, prog_bar=True, sync_dist=True, rank_zero_only=True)
         self.log("test_mse", torch_mse, prog_bar=True, sync_dist=True, rank_zero_only=True)
+
+        breakpoint()
+        #!>>>>>>>>>>>>>>error on each class separately. 
+        for class_index, losses in self.class_losses.items():
+            if losses:  # Ensure there are losses to calculate the mean
+                avg_loss = torch.stack(losses).mean()
+                self.log(f"test_avg_loss_class_{class_index}", avg_loss)
+
+        # Reset for potential future tests
+        self.class_losses = {
+        "electron_tran": [],
+        "break_1_form_1" : [],
+        "form_1" : [],
+        "break_1" : []
+        }
 
 
     def update_metrics(self, pred, target, mode):

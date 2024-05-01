@@ -151,6 +151,7 @@ class BondNetLightningDataModuleLMDB(pl.LightningDataModule):
             batch_size=self.config["optim"]["batch_size"],
             shuffle=False,
             num_workers=self.config["optim"]["num_workers"],
+            #worker_init_fn=worker_init_fn,
         )
 
 
@@ -161,7 +162,6 @@ class BondNetLightningDataModuleLMDB(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.config["optim"]["num_workers"],
         )
-
 
 
 class BondNetLightningDataModule(pl.LightningDataModule):
@@ -243,3 +243,7 @@ class BondNetLightningDataModule(pl.LightningDataModule):
             shuffle=False,
             num_workers=self.config["optim"]["num_workers"]
         )
+
+
+def worker_init_fn(worker_id):
+    print(f"Initializing worker {worker_id}")

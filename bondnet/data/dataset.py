@@ -7,7 +7,8 @@ from pathlib import Path
 from concurrent.futures import TimeoutError
 from tqdm import tqdm
 from rdkit import Chem, RDLogger
-import pickle
+#import pickle
+import pickle5 as pickle
 import lmdb
 import bisect
 from copy import deepcopy

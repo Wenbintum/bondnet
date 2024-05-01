@@ -253,15 +253,16 @@ def get_batch_indices_mapping(batch_indices, reactant_ids, atom_bond_map, atom_b
     #if len(sorted_values_concat) != len(matches):
     #    raise ValueError("Length of sorted_values_concat and matches must be equal.")
     # convert sorted_values_concat to array of ints
-    sorted_values_concat = sorted_values_concat.int()
+    sorted_values_concat = sorted_values_concat.long()
 
     #print(matches.shape, sorted_values_concat.shape)
     #print(atom_bond_map)
     #print(matches)
     #print(sorted_values_concat)
+    #print(sorted_values_concat.dtype)
+
     indices_full[sorted_values_concat] = matches
     return indices_full
-
 
 
 def create_batched_reaction_data(
